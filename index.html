@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Hol vannak most éppen Balázsék?</title>
+    <title>GPS: Hol vannak most éppen Balázsék?</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -11,7 +11,6 @@
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f1115; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
         
-        /* Prémium, áttetsző sötét Dashboard mobilra optimalizálva */
         #dashboard {
             position: absolute;
             bottom: 20px;
@@ -19,14 +18,14 @@
             transform: translateX(-50%);
             width: 92%;
             max-width: 420px;
-            background: rgba(18, 22, 28, 0.85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(18, 22, 28, 0.9);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.1);
             color: white;
             border-radius: 24px;
             padding: 22px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8);
             z-index: 1000;
             box-sizing: border-box;
         }
@@ -36,20 +35,19 @@
             border-bottom: 1px solid rgba(255,255,255,0.1);
             padding-bottom: 12px;
             margin-bottom: 12px;
-            position: relative;
         }
 
         .speed-label { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1.5px; color: #8a94a6; font-weight: 600; }
-        #speed-value { font-size: 3.2em; font-weight: 900; color: #00e676; text-shadow: 0 0 20px rgba(0, 230, 118, 0.4); margin: 2px 0; line-height: 1; }
+        #speed-value { font-size: 3.5em; font-weight: 900; color: #00e676; text-shadow: 0 0 20px rgba(0, 230, 118, 0.4); margin: 0; line-height: 1.1; }
         .speed-unit { font-size: 0.35em; color: #fff; font-weight: 400; margin-left: 2px; }
 
         #status-badge {
             display: inline-block;
             background: #ff9800;
             color: #000;
-            padding: 4px 10px;
+            padding: 4px 12px;
             border-radius: 12px;
-            font-size: 0.75em;
+            font-size: 0.8em;
             font-weight: 800;
             letter-spacing: 0.5px;
             margin-top: 5px;
@@ -59,71 +57,76 @@
         .waiting { background: #00b0ff !important; color: white !important; }
         .arrived { background: #ea4335 !important; color: white !important; }
 
-        /* Statisztika sorok */
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-        .stat-box { background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03); }
+        .stat-box { background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
         .stat-label { font-size: 0.7em; color: #8a94a6; text-transform: uppercase; font-weight: 600; margin-bottom: 2px; }
         .stat-value { font-size: 0.95em; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
         .full-width { grid-column: span 2; }
 
-        /* Folyamatjelző csík (Progress Bar) */
         .progress-container { width: 100%; background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 5px; }
         #progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #00b0ff, #00e676); transition: width 0.4s ease; }
 
-        /* Rejtett szimuláció jelző */
         #sim-indicator {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #e91e63;
-            color: white;
-            font-size: 0.6em;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: bold;
-            letter-spacing: 1px;
-            display: none;
+            position: absolute; top: -15px; right: 20px; background: #e91e63; color: white; font-size: 0.7em; padding: 4px 10px; border-radius: 10px; font-weight: bold; letter-spacing: 1px; display: none; box-shadow: 0 5px 15px rgba(233, 30, 99, 0.5);
+        }
+        
+        #loading-overlay {
+            position: absolute; top:0; left:0; width:100%; height:100%; background: #0f1115; z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #00e676; font-family: 'Segoe UI', sans-serif; transition: opacity 0.5s;
+        }
+        
+        /* GPS Nyíl (Jármű) */
+        .gps-arrow {
+            width: 40px; height: 40px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2L4 20L12 17L20 20L12 2Z" fill="%2300e676" stroke="%23ffffff" stroke-width="1.5"/></svg>');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            transition: transform 0.1s linear; /* Folyamatos forgás */
         }
     </style>
 </head>
 <body>
 
+    <div id="loading-overlay">
+        <h2>GPS Útvonal tervezése...</h2>
+        <p>Európai úthálózat betöltése</p>
+    </div>
+
     <div id="map"></div>
 
     <div id="dashboard">
-        <div id="sim-indicator">SZIMULÁCIÓ (1500x)</div>
+        <div id="sim-indicator">SZIMULÁCIÓ AKTÍV</div>
         
         <div id="speed-container">
             <div class="speed-label">Aktuális sebesség</div>
             <div id="speed-value">0<span class="speed-unit"> km/h</span></div>
-            <div id="status-badge">Várakozás az indulásra</div>
+            <div id="status-badge">Tervezés...</div>
         </div>
         
         <div class="stats-grid">
             <div class="stat-box full-width">
-                <div class="stat-label">Következő állomás / Helyszín</div>
-                <div class="stat-value" id="next-stop">Szigethalom</div>
+                <div class="stat-label">Cél / Következő pont</div>
+                <div class="stat-value" id="next-stop">Betöltés...</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Hátralévő táv</div>
+                <div class="stat-label">Hátralévő</div>
                 <div class="stat-value" id="dist-remaining">- km</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Megtett út</div>
+                <div class="stat-label">Megtett</div>
                 <div class="stat-value" id="dist-covered">- km</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Szimulált Idő</div>
+                <div class="stat-label" id="time-label">Aktuális Idő</div>
                 <div class="stat-value" id="current-time-display">-</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Várható Érkezés (Cél)</div>
+                <div class="stat-label">Várható Érkezés</div>
                 <div class="stat-value" id="eta-display">-</div>
             </div>
         </div>
 
-        <div class="stat-label" style="margin-top: 5px;">Teljes utazás előrehaladása</div>
+        <div class="stat-label" style="margin-top: 5px;">Útvonal haladás</div>
         <div class="progress-container">
             <div id="progress-bar"></div>
         </div>
@@ -131,228 +134,236 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. PONTOS ÚTVONALADATOK (Szigethalom -> Marina Julia)
-        const route = [
-            { name: "Szigethalom (Indulás)", lat: 47.3184296, lng: 19.0066748, avgSpeed: 110 },
-            { name: "Letenye, MOL kút", lat: 46.4362118, lng: 16.7368428, avgSpeed: 110 },
-            { name: "Marché Tepanje (SLO)", lat: 46.3484736, lng: 15.4864489, avgSpeed: 110 },
-            { name: "Marché Lom (SLO)", lat: 45.8972487, lng: 14.2549978, avgSpeed: 100 },
-            { name: "Marina Julia (Cél)", lat: 45.7771682, lng: 13.527283, avgSpeed: 0 }
+        // 1. BEÁLLÍTÁSOK ÉS ÚTVONAL PONTOK
+        const waypoints = [
+            { name: "Szigethalom (Indulás)", lat: 47.3184296, lng: 19.0066748 },
+            { name: "Letenye, MOL kút", lat: 46.4362118, lng: 16.7368428, isStop: true },
+            { name: "Marché Tepanje", lat: 46.3484736, lng: 15.4864489, isStop: true },
+            { name: "Marché Lom", lat: 45.8972487, lng: 14.2549978, isStop: true },
+            { name: "Marina Julia (Cél)", lat: 45.7771682, lng: 13.527283, isStop: false }
         ];
 
-        const STOP_DURATION_MS = 30 * 60 * 1000; // 30 perc megállónként
-
-        // Térkép inicializálása (Sötét, prémium kinézet)
-        const map = L.map('map', { zoomControl: false }).setView([46.5, 16.5], 7);
+        // Térkép inicializálása (GPS nézet: közelebb és sötét)
+        const map = L.map('map', { zoomControl: false }).setView([waypoints[0].lat, waypoints[0].lng], 15);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Útvonal kirajzolása kék izzással
-        const latlngs = route.map(p => [p.lat, p.lng]);
-        L.polyline(latlngs, {color: '#00b0ff', weight: 5, opacity: 0.6}).addTo(map);
-        
-        // Megállók jelölése kis pontokkal
-        route.forEach((stop, idx) => {
-            L.circleMarker([stop.lat, stop.lng], {
-                radius: idx === 0 || idx === route.length - 1 ? 7 : 5,
-                color: idx === route.length - 1 ? '#ea4335' : '#00b0ff',
-                fillOpacity: 1
-            }).addTo(map).bindPopup(stop.name);
-        });
+        // Jármű GPS nyíl
+        const carIcon = L.divIcon({ html: '<div id="gps-arrow-elem" class="gps-arrow"></div>', className: '', iconSize: [40, 40], iconAnchor: [20, 20] });
+        const carMarker = L.marker([waypoints[0].lat, waypoints[0].lng], {icon: carIcon, zIndexOffset: 1000}).addTo(map);
 
-        // Jármű egyedi neon-piros jelölője
-        const carIcon = L.divIcon({
-            html: '<div style="background:#ff3d00; width:18px; height:18px; border-radius:50%; border:3px solid white; box-shadow: 0 0 15px #ff3d00;"></div>',
-            className: '',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-        });
-        const carMarker = L.marker([route[0].lat, route[0].lng], {icon: carIcon}).addTo(map);
-
-        // 2. IDŐZÍTÉSI ÉS SZIMULÁCIÓS LOGIKA
+        // 2. IDŐZÍTÉSEK (Fixen a következő Vasárnap 07:30)
         function getNextSunday730() {
-            let d = new Date();
-            d.setDate(d.getDate() + (7 - d.getDay()) % 7);
-            if (d.getDay() === 0 && (d.getHours() > 7 || (d.getHours() === 7 && d.getMinutes() >= 30))) {
-                d.setDate(d.getDate() + 7);
+            let now = new Date();
+            let d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 7, 30, 0, 0); // Ma 07:30
+            let day = d.getDay();
+            let daysUntilSunday = (7 - day) % 7;
+            
+            // Ha ma vasárnap van, de már elmúlt 07:30, akkor a jövő heti vasárnap kell
+            if (daysUntilSunday === 0 && now.getTime() > d.getTime()) {
+                daysUntilSunday = 7;
             }
-            d.setHours(7, 30, 0, 0);
+            d.setDate(d.getDate() + daysUntilSunday);
             return d.getTime();
         }
 
         const urlParams = new URLSearchParams(window.location.search);
         const SIMULATION_MODE = urlParams.has('sim');
-        const SIM_SPEEDUP = 1500; // Szupergyors mód: 1 másodperc alatt 25 perc telik el
+        const SIM_SPEEDUP = 1500; 
 
         let actualStartTime = Date.now();
         let tripStartTime = getNextSunday730();
         
         if (SIMULATION_MODE) {
-            tripStartTime = actualStartTime; // Szimulációnál azonnal indul
+            tripStartTime = actualStartTime;
             document.getElementById('sim-indicator').style.display = 'block';
+            document.getElementById('time-label').innerText = 'Szimulált Idő'; // Csak itt írja ki!
         }
 
-        // Távolság számítása koordinátákból (Haversine formula)
+        // Távolság és irányszög (GPS forgáshoz) kalkulátorok
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        // 3. MENETREND GENERÁLÁSA
-        let schedule = [];
-        let currentTimeCursor = tripStartTime;
-        let totalTripDistance = 0;
-
-        for (let i = 0; i < route.length - 1; i++) {
-            let dist = calculateDistance(route[i].lat, route[i].lng, route[i+1].lat, route[i+1].lng);
-            totalTripDistance += dist;
-            let travelTimeMs = (dist / route[i].avgSpeed) * 60 * 60 * 1000;
-            
-            schedule.push({
-                type: 'travel',
-                start: currentTimeCursor,
-                end: currentTimeCursor + travelTimeMs,
-                from: route[i],
-                to: route[i+1],
-                baseSpeed: route[i].avgSpeed,
-                distance: dist
-            });
-            currentTimeCursor += travelTimeMs;
-
-            if (i < route.length - 2) {
-                schedule.push({
-                    type: 'stop',
-                    start: currentTimeCursor,
-                    end: currentTimeCursor + STOP_DURATION_MS,
-                    location: route[i+1]
-                });
-                currentTimeCursor += STOP_DURATION_MS;
-            }
+        function getBearing(lat1, lng1, lat2, lng2) {
+            let dLng = (lng2 - lng1) * Math.PI / 180;
+            lat1 = lat1 * Math.PI / 180; lat2 = lat2 * Math.PI / 180;
+            let y = Math.sin(dLng) * Math.cos(lat2);
+            let x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
         }
 
-        const finalEndTime = currentTimeCursor;
-        // Fix ETA kiírása
-        let etaDate = new Date(finalEndTime);
-        document.getElementById('eta-display').innerText = etaDate.toLocaleTimeString('hu-HU', {hour: '2-digit', minute:'2-digit'});
+        // 3. OSRM VALÓS ÚTVONAL LEKÉRÉSE
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${waypoints.map(w => w.lng + ',' + w.lat).join(';')}?overview=full&geometries=geojson`;
 
-        // 4. ANIMÁCIÓS CIKLUS
+        fetch(osrmUrl)
+            .then(response => response.json())
+            .then(data => {
+                const coordinates = data.routes[0].geometry.coordinates; // [lng, lat]
+                
+                // Útvonal kirajzolása (GPS vonal)
+                const latlngs = coordinates.map(c => [c[1], c[0]]);
+                L.polyline(latlngs, {color: '#00b0ff', weight: 6, opacity: 0.7}).addTo(map);
+
+                // Eltüntetjük a töltőképernyőt
+                document.getElementById('loading-overlay').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading-overlay').style.display = 'none', 500);
+
+                generateTimeline(coordinates);
+            })
+            .catch(err => {
+                alert("Hiba az útvonal lekérésekor. Próbáld frissíteni az oldalt!");
+                console.error(err);
+            });
+
+        // 4. MÁSODPERCPONTOS IDŐVONAL GENERÁLÁSA AZ UTCAI KOORDINÁTÁKBÓL
+        let timeline = [];
+        let finalEndTime = 0;
+        let totalTripDistance = 0;
+
+        function generateTimeline(coords) {
+            let currentTime = tripStartTime;
+            let stopsToMake = waypoints.filter(w => w.isStop).map(w => ({...w, done: false}));
+            
+            timeline.push({ time: currentTime, lat: coords[0][1], lng: coords[0][0], dist: 0, status: 'ÚTON', next: stopsToMake[0].name });
+
+            for (let i = 0; i < coords.length - 1; i++) {
+                let p1 = { lat: coords[i][1], lng: coords[i][0] };
+                let p2 = { lat: coords[i+1][1], lng: coords[i+1][0] };
+                
+                let dist = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
+                totalTripDistance += dist;
+
+                // Átlagsebesség az autópályán: ~105 km/h
+                let timeMs = (dist / 105) * 60 * 60 * 1000;
+                currentTime += timeMs;
+
+                // Megálló érzékelése (ha közelebb érünk a megállóhoz, mint 1 km)
+                let currentNextStop = "Marina Julia (Cél)";
+                for (let stop of stopsToMake) {
+                    if (!stop.done) {
+                        currentNextStop = stop.name;
+                        let distToStop = calculateDistance(p2.lat, p2.lng, stop.lat, stop.lng);
+                        if (distToStop < 1.0) { 
+                            stop.done = true;
+                            // Pihenő beszúrása
+                            timeline.push({ time: currentTime, lat: p2.lat, lng: p2.lng, dist: totalTripDistance, status: 'PIHENŐ (30p)', next: stop.name });
+                            currentTime += 30 * 60 * 1000; // 30 perc állás
+                            break;
+                        }
+                    }
+                }
+
+                timeline.push({ time: currentTime, lat: p2.lat, lng: p2.lng, dist: totalTripDistance, status: 'ÚTON', next: currentNextStop });
+            }
+
+            finalEndTime = currentTime;
+            let etaDate = new Date(finalEndTime);
+            document.getElementById('eta-display').innerText = etaDate.toLocaleTimeString('hu-HU', {hour: '2-digit', minute:'2-digit'});
+
+            // Animáció indítása
+            requestAnimationFrame(updateLoop);
+        }
+
+        // 5. GPS ANIMÁCIÓS CIKLUS
         let currentDisplayedSpeed = 0;
         let lastSpeedUpdate = 0;
+        let lastBearing = 0;
 
         function updateLoop() {
+            if (timeline.length === 0) return requestAnimationFrame(updateLoop);
+
             let now = Date.now();
-            let simulatedNow = SIMULATION_MODE 
-                ? tripStartTime + ((now - actualStartTime) * SIM_SPEEDUP) 
-                : now;
+            let simulatedNow = SIMULATION_MODE ? tripStartTime + ((now - actualStartTime) * SIM_SPEEDUP) : now;
 
-            // Élő óra kijelzése
-            let dateObj = new Date(simulatedNow);
-            document.getElementById('current-time-display').innerText = dateObj.toLocaleTimeString('hu-HU', {hour: '2-digit', minute:'2-digit'});
-
+            // Óra
+            document.getElementById('current-time-display').innerText = new Date(simulatedNow).toLocaleTimeString('hu-HU', {hour: '2-digit', minute:'2-digit'});
             let badge = document.getElementById('status-badge');
 
-            // INDULÁS ELŐTTI ÁLLAPOT
+            // INDULÁS ELŐTT
             if (simulatedNow < tripStartTime) {
-                document.getElementById('next-stop').innerText = route[0].name;
                 document.getElementById('dist-remaining').innerText = Math.round(totalTripDistance) + " km";
                 document.getElementById('dist-covered').innerText = "0 km";
-                badge.className = '';
-                badge.innerText = 'VÁRAKOZÁS INDULÁSRA';
+                document.getElementById('next-stop').innerText = "Várakozás az indulásra (Vasárnap 07:30)";
+                badge.className = 'waiting'; badge.innerText = 'INDULÁSRA VÁR';
                 return requestAnimationFrame(updateLoop);
             }
 
-            // CÉLBA ÉRKEZETT ÁLLAPOT
+            // CÉLBA ÉRT
             if (simulatedNow > finalEndTime) {
-                carMarker.setLatLng([route[route.length-1].lat, route[route.length-1].lng]);
+                let last = timeline[timeline.length-1];
+                carMarker.setLatLng([last.lat, last.lng]);
                 document.getElementById('speed-value').innerHTML = '0<span class="speed-unit"> km/h</span>';
-                document.getElementById('next-stop').innerText = "Marina Julia (Cél)";
                 document.getElementById('dist-remaining').innerText = "0 km";
                 document.getElementById('dist-covered').innerText = Math.round(totalTripDistance) + " km";
+                document.getElementById('next-stop').innerText = "Célba értek!";
                 document.getElementById('progress-bar').style.width = "100%";
-                badge.className = 'arrived';
-                badge.innerText = 'MEGÉRKEZTEK!';
-                if(SIMULATION_MODE) map.setView([route[route.length-1].lat, route[route.length-1].lng], 12);
-                return; // Leáll az animációs ciklus
+                badge.className = 'arrived'; badge.innerText = 'MEGÉRKEZTEK!';
+                map.setView([last.lat, last.lng], 15); // Kamera a célon
+                return; 
             }
 
-            // AKTUÁLIS ESEMÉNY KERESÉSE
-            let currentEventIdx = schedule.findIndex(ev => simulatedNow >= ev.start && simulatedNow <= ev.end);
-            let currentEvent = schedule[currentEventIdx];
+            // AKTUÁLIS POZÍCIÓ MEGTALÁLÁSA
+            for (let i = 0; i < timeline.length - 1; i++) {
+                if (simulatedNow >= timeline[i].time && simulatedNow <= timeline[i+1].time) {
+                    let p1 = timeline[i];
+                    let p2 = timeline[i+1];
+                    let progress = (simulatedNow - p1.time) / (p2.time - p1.time);
 
-            // Kiszámoljuk az addig megtett összes fix távolságot a korábbi szakaszokból
-            let coveredDistanceBefore = 0;
-            for(let i = 0; i < currentEventIdx; i++) {
-                if(schedule[i].type === 'travel') coveredDistanceBefore += schedule[i].distance;
-            }
+                    if (p1.status === 'PIHENŐ (30p)') {
+                        // ÁLL a megállóban
+                        carMarker.setLatLng([p1.lat, p1.lng]);
+                        map.setView([p1.lat, p1.lng]); // Kamera tartja
+                        document.getElementById('speed-value').innerHTML = '0<span class="speed-unit"> km/h</span>';
+                        document.getElementById('next-stop').innerText = p1.next;
+                        badge.className = 'waiting'; badge.innerText = 'PIHENŐ (30p)';
+                        
+                    } else {
+                        // MOZOG az úton
+                        let curLat = p1.lat + (p2.lat - p1.lat) * progress;
+                        let curLng = p1.lng + (p2.lng - p1.lng) * progress;
+                        let curDist = p1.dist + (p2.dist - p1.dist) * progress;
+                        
+                        carMarker.setLatLng([curLat, curLng]);
+                        
+                        // Kamera rögzítése az autóra, mint egy igazi GPS-nél!
+                        map.setView([curLat, curLng], 14, { animate: false }); 
 
-            if (currentEvent) {
-                if (currentEvent.type === 'travel') {
-                    // Haladás százaléka az adott szakaszon belül
-                    let progress = (simulatedNow - currentEvent.start) / (currentEvent.end - currentEvent.start);
-                    
-                    // Pozíció interpoláció (mozgás a két pont között)
-                    let currentLat = currentEvent.from.lat + (currentEvent.to.lat - currentEvent.from.lat) * progress;
-                    let currentLng = currentEvent.from.lng + (currentEvent.to.lng - currentEvent.from.lng) * progress;
-                    
-                    carMarker.setLatLng([currentLat, currentLng]);
-                    
-                    // Szimuláció alatt kövesse a kamera a kocsit
-                    if(SIMULATION_MODE) map.panTo([currentLat, currentLng], {animate: false});
+                        // Forgás (Bearing) kiszámítása
+                        if (curLat !== p1.lat || curLng !== p1.lng) {
+                            let bearing = getBearing(p1.lat, p1.lng, p2.lat, p2.lng);
+                            // Ha nagy a változás, frissítjük a nyíl irányát
+                            if (Math.abs(bearing - lastBearing) > 2) {
+                                document.getElementById('gps-arrow-elem').style.transform = `rotate(${bearing}deg)`;
+                                lastBearing = bearing;
+                            }
+                        }
 
-                    // Szöveges adatok frissítése
-                    document.getElementById('next-stop').innerText = currentEvent.to.name;
-                    badge.className = 'moving';
-                    badge.innerText = 'ÚTON VANNAK';
+                        // Feliratok frissítése
+                        document.getElementById('next-stop').innerText = p1.next;
+                        badge.className = 'moving'; badge.innerText = 'ÚTON VANNAK';
+                        document.getElementById('dist-covered').innerText = Math.round(curDist) + " km";
+                        document.getElementById('dist-remaining').innerText = Math.round(totalTripDistance - curDist) + " km";
+                        document.getElementById('progress-bar').style.width = ((curDist / totalTripDistance) * 100) + "%";
 
-                    // Távolságok számítása
-                    let currentSegmentCovered = currentEvent.distance * progress;
-                    let totalCovered = coveredDistanceBefore + currentSegmentCovered;
-                    let totalRemaining = totalTripDistance - totalCovered;
-
-                    document.getElementById('dist-covered').innerText = Math.round(totalCovered) + " km";
-                    document.getElementById('dist-remaining').innerText = Math.round(totalRemaining) + " km";
-                    
-                    // Globális Progress Bar frissítése
-                    let totalProgressPercent = (totalCovered / totalTripDistance) * 100;
-                    document.getElementById('progress-bar').style.width = totalProgressPercent + "%";
-
-                    // Sebesség szimuláció (+- 5% percenként / szimulációban gyorsabban váltakozik)
-                    if (now - lastSpeedUpdate > (SIMULATION_MODE ? 200 : 60000)) {
-                        let variation = 0.95 + (Math.random() * 0.1); // 0.95 és 1.05 között
-                        currentDisplayedSpeed = Math.round(currentEvent.baseSpeed * variation);
-                        lastSpeedUpdate = now;
+                        // Sebesség szimuláció (+- 5% a 105 km/h körül)
+                        if (now - lastSpeedUpdate > (SIMULATION_MODE ? 100 : 3000)) {
+                            currentDisplayedSpeed = Math.round(105 * (0.95 + Math.random() * 0.1));
+                            lastSpeedUpdate = now;
+                        }
+                        document.getElementById('speed-value').innerHTML = currentDisplayedSpeed + '<span class="speed-unit"> km/h</span>';
                     }
-                    document.getElementById('speed-value').innerHTML = currentDisplayedSpeed + '<span class="speed-unit"> km/h</span>';
-                    
-                } else if (currentEvent.type === 'stop') {
-                    // Megállóban tartózkodás
-                    carMarker.setLatLng([currentEvent.location.lat, currentEvent.location.lng]);
-                    document.getElementById('next-stop').innerText = currentEvent.location.name;
-                    document.getElementById('speed-value').innerHTML = '0<span class="speed-unit"> km/h</span>';
-                    
-                    document.getElementById('dist-covered').innerText = Math.round(coveredDistanceBefore) + " km";
-                    document.getElementById('dist-remaining').innerText = Math.round(totalTripDistance - coveredDistanceBefore) + " km";
-                    
-                    let totalProgressPercent = (coveredDistanceBefore / totalTripDistance) * 100;
-                    document.getElementById('progress-bar').style.width = totalProgressPercent + "%";
-
-                    badge.className = 'waiting';
-                    badge.innerText = 'PIHENŐ (30p)';
-                    if(SIMULATION_MODE) map.panTo([currentEvent.location.lat, currentEvent.location.lng], {animate: false});
+                    break;
                 }
             }
 
             requestAnimationFrame(updateLoop);
         }
-
-        // Animáció indítása
-        requestAnimationFrame(updateLoop);
     </script>
 </body>
 </html>
